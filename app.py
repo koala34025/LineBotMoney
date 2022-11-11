@@ -36,6 +36,53 @@ def callback():
     return 'OK'
 
 
+def edit_ask_for_id(id, wanna_edit, num_of_rec):
+    try:
+        wanna_edit = int(wanna_edit)
+        assert 0 <= wanna_edit <= num_of_rec # Ensure that the input is within the bounds
+        
+    except ValueError:
+        # If the input cannot be converted into an integer
+        return 'Invalid format. Fail to edit a record.'
+        
+    except AssertionError:
+        # If the input is out of bounds
+        return f'There\'s no record with No.{wanna_edit}. Fail to edit a record.'
+        
+    if wanna_edit == 0: # Do nothing if the input is 0
+        return 'The edit is skipped'
+        
+    update_request_id(id, wanna_edit)
+    return "Edit the record with new category, description, and amount: "
+
+
+def edit(id, new_record, num_of_rec):
+    try:
+        cate, desc, amt = new_record.split()
+    except ValueError:
+        # If the input string cannot be split into a list of two strings
+        return 'The format of a record should be like this: meal breakfast -50.\nFail to edit a record.'
+
+    # Handle cate not in categories
+    #if not is_category_valid(cate, categories):
+        #sys.stderr.write('The specified category is not in the category list.\n')
+        #sys.stderr.write('You can check the category list by command "view categories".\n')
+        #sys.stderr.write('Fail to edit a record.\n')
+        #return records
+
+    try:
+        amt = int(amt) # Check if amt is a numberic string
+    except ValueError:
+        # If amt cannot be converted to integer
+        return 'Invalid value for money.\nFail to edit a record.'
+    
+    rows = db.execute("SELECT request_id FROM people WHERE id = ?", id)
+    request_id = rows[0]['request_id']
+    db.execute("UPDATE records SET category = ?, description = ?, amount = ? WHERE person_id = ? AND record_id = ?", cate, desc, amt, id, request_id)
+
+    return f'Successfully edit a record No.{request_id}'
+    
+
 def view(id):
     reply = ''
     # Parameters for print formatting
@@ -66,10 +113,10 @@ def view(id):
 
 def add(id, record, num_of_rec):
     try:
-        desc, amt = record.split()
+        cate, desc, amt = record.split()
     except ValueError:
         # If the input string cannot be split into a list of two strings
-        return 'The format of a record should be like this: breakfast -50.\nFail to add a record.'
+        return 'The format of a record should be like this: meal breakfast -50.\nFail to add a record.'
     
     try:
         amt = int(amt) # Check if amt is a numberic string and convert it
@@ -78,11 +125,11 @@ def add(id, record, num_of_rec):
         return 'Invalid value for money.\nFail to add a record.'
     else:
         # Keep records a list of lists of strings for future str operations
-        db.execute("INSERT INTO records (person_id, description, amount, record_id) VALUES(?, ?, ?, ?)", id, desc, amt, num_of_rec+1)
+        db.execute("INSERT INTO records (person_id, description, amount, record_id, category) VALUES(?, ?, ?, ?, ?)", id, desc, amt, num_of_rec+1, cate)
         # Update user's num_of_rec + 1
         update_num_of_rec(id, num_of_rec+1)
 
-        return f'Successfully add a record No.{num_of_rec+1}: {desc} {amt}'
+        return f'Successfully add a record No.{num_of_rec+1}: {cate} {desc} {amt}'
 
 
 def delete(id, wanna_del, num_of_rec):
@@ -118,12 +165,16 @@ def delete(id, wanna_del, num_of_rec):
         return f'Successfully delete a record No.{wanna_del}'
 
 
+def update_status(id, new_status):
+    db.execute("UPDATE people SET status = ? WHERE id = ?", new_status, id)
+
+
 def update_num_of_rec(id, new_num_of_rec):
     db.execute("UPDATE people SET num_of_rec = ? WHERE id = ?", new_num_of_rec, id)
 
 
-def update_status(id, new_status):
-    db.execute("UPDATE people SET status = ? WHERE id = ?", new_status, id)
+def update_request_id(id, new_request_id):
+    db.execute("UPDATE people SET request_id = ? WHERE id = ?", new_request_id, id)
 
 
 @handler.add(MessageEvent, message=TextMessage)
@@ -154,6 +205,10 @@ def handle_message(event):
             reply = "Which record do you want to delete (0 to skip): No.?"
             update_status(user_id, 'DELETE')
 
+        elif text == 'edit':
+            reply = "Which record do you want to edit (0 to skip): No.?"
+            update_status(user_id, 'EDIT_ASK_FOR_ID')
+
         else:
             reply = "Invalid command. Try again."
             update_status(user_id, 'INIT')
@@ -164,6 +219,17 @@ def handle_message(event):
 
     elif user_status == 'DELETE':
         reply = delete(user_id, text, user_num_of_rec)
+        update_status(user_id, 'INIT')
+
+    elif user_status == 'EDIT_ASK_FOR_ID':
+        reply = edit_ask_for_id(user_id, text, user_num_of_rec)
+        if reply == 'Edit the record with new category, description, and amount: ':
+            update_status(user_id, 'EDIT')
+        else:
+            update_status(user_id, 'INIT')
+
+    elif user_status == 'EDIT':
+        reply = edit(user_id, text, user_num_of_rec)
         update_status(user_id, 'INIT')
 
     line_bot_api.reply_message(
