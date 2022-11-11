@@ -17,6 +17,39 @@ handler = WebhookHandler(config.get('line-bot', 'channel_secret'))
 db = SQL("sqlite:///money.db")
 # return a list of dic
 
+
+commands = [
+    'add',
+    'view',
+    'delete',
+    'edit',
+    'view categories',
+    'find'
+]
+
+categories = [
+    'expense', 
+    [
+        'food',
+        [
+            'meal', 
+            'snack', 
+            'drink'
+        ], 
+        'transportation', 
+        [
+            'bus', 
+            'railway'
+        ]
+    ], 
+    'income', 
+    [
+        'salary', 
+        'bonus'
+    ]
+]
+
+
 @app.route("/callback", methods=['POST'])
 def callback():
     # get X-Line-Signature header value
@@ -34,6 +67,18 @@ def callback():
         abort(400)
 
     return 'OK'
+
+
+def is_category_valid(target, categories=categories):
+    '''Return if a category is in the category list
+    '''
+    if type(categories) == str:
+        return categories == target
+        
+    result = False
+    for e in categories:
+        result |= is_category_valid(target, e)
+    return result
 
 
 def edit_ask_for_id(id, wanna_edit, num_of_rec):
@@ -64,11 +109,10 @@ def edit(id, new_record, num_of_rec):
         return 'The format of a record should be like this: meal breakfast -50.\nFail to edit a record.'
 
     # Handle cate not in categories
-    #if not is_category_valid(cate, categories):
-        #sys.stderr.write('The specified category is not in the category list.\n')
-        #sys.stderr.write('You can check the category list by command "view categories".\n')
-        #sys.stderr.write('Fail to edit a record.\n')
-        #return records
+    if not is_category_valid(cate):
+        return 'The specified category is not in the category list.\n' \
+        'You can check the category list by command "view categories".\n' \
+        'Fail to edit a record.'
 
     try:
         amt = int(amt) # Check if amt is a numberic string
@@ -119,6 +163,12 @@ def add(id, record, num_of_rec):
         # If the input string cannot be split into a list of two strings
         return 'The format of a record should be like this: meal breakfast -50.\nFail to add a record.'
     
+    # Handle cate not in categories
+    if not is_category_valid(cate):
+        return 'The specified category is not in the category list.\n' \
+        'You can check the category list by command "view categories".\n' \
+        'Fail to add a record.'
+
     try:
         amt = int(amt) # Check if amt is a numberic string and convert it
     except ValueError:
@@ -210,9 +260,12 @@ def handle_message(event):
             reply = "Which record do you want to edit (0 to skip): No.?"
             update_status(user_id, 'EDIT_ASK_FOR_ID')
 
+        elif text == 'help':
+            reply = ' / '.join(commands)
+
         else:
-            reply = "Invalid command. Try again."
-            update_status(user_id, 'INIT')
+            reply = 'Invalid command. Try again.\nYou can check valid commands by "help".'
+            #update_status(user_id, 'INIT')
 
     elif user_status == 'ADD':
         reply = add(user_id, text, user_num_of_rec)
