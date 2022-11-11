@@ -69,6 +69,18 @@ def callback():
     return 'OK'
 
 
+def view_categories(categories=categories, level = -1):
+    '''Show all the categories
+    '''
+    if type(categories) == str:
+        return '  ' * level + '- ' + categories + '\n'
+    
+    reply = ''
+    for e in categories:
+        reply += view_categories(e, level + 1)
+    return reply
+
+
 def is_category_valid(target, categories=categories):
     '''Return if a category is in the category list
     '''
@@ -259,6 +271,12 @@ def handle_message(event):
         elif text == 'edit':
             reply = "Which record do you want to edit (0 to skip): No.?"
             update_status(user_id, 'EDIT_ASK_FOR_ID')
+
+        elif text == 'view categories':
+            reply = view_categories()
+
+        elif text == 'find':
+            pass
 
         elif text == 'help':
             reply = ' / '.join(commands)
