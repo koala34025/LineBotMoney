@@ -87,19 +87,20 @@ def view(id):
     reply = ''
     # Parameters for print formatting
     no_width = 3
+    cate_width = 15
     desc_width = 20
     amt_width = 6
 
     reply += 'Here\'s your expense and income records:\n'
-    reply += f'{"No.":{no_width}} {"Description":{desc_width}} {"Amount":{amt_width}}\n'
-    reply += '=== ==================== ======\n'
+    reply += f'{"No.":{no_width}} {"Category":{cate_width}} {"Description":{desc_width}} {"Amount":{amt_width}}\n'
+    reply += '=== =============== ==================== ======\n'
     
     rows = db.execute("SELECT * from records WHERE person_id = ?", id)
 
     for record in rows:
-        reply += f'{record["record_id"]:<{no_width}} {record["description"]:{desc_width}} {record["amount"]:{amt_width}}\n'
+        reply += f'{record["record_id"]:<{no_width}} {record["category"]:{cate_width}} {record["description"]:{desc_width}} {record["amount"]:{amt_width}}\n'
         
-    reply += '=== ==================== ======\n'
+    reply += '=== =============== ==================== ======\n'
 
     balance = 0
     # Sum up the amount of money of records
