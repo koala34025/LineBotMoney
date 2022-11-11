@@ -70,15 +70,15 @@ def callback():
 
 
 def view_categories(categories=categories, level = -1):
-    '''Show all the categories
+    '''Show all the categories, return with a reply list
     '''
     if type(categories) == str:
-        return '  ' * level + '- ' + categories + '\n'
+        return ['  ' * level + '- ' + categories]
     
-    reply = ''
+    reply_list = []
     for e in categories:
-        reply += view_categories(e, level + 1)
-    return reply
+        reply_list += view_categories(e, level + 1)
+    return reply_list
 
 
 def is_category_valid(target, categories=categories):
@@ -91,6 +91,74 @@ def is_category_valid(target, categories=categories):
     for e in categories:
         result |= is_category_valid(target, e)
     return result
+
+
+def find_subcategories(target, categories=categories):
+    '''Return a nested list containing a certain category and its subcategories
+    '''
+    result = []
+    for idx, e in enumerate(categories):
+        if type(e) == str:
+            if e == target:
+                if idx + 1 < len(categories) and type(categories[idx+1]) == list:
+                    return categories[idx: idx+2]
+                else:
+                    return [categories[idx]]
+        else:
+            result += find_subcategories(target, e)
+
+    return result
+
+
+def flatten(L):
+    '''Flat a nested list
+    '''
+    if type(L) == str:
+        return [L]
+
+    ret = []
+    for e in L:
+        ret += flatten(e)
+    return ret
+
+
+def find(id, target):
+    '''Show all the records under a certain category and its subcategories 
+    '''
+    reply = ''
+    # Parameters for print formatting
+    cate_width = 15
+    no_width = 3
+    desc_width = 20
+    amt_width = 6
+    
+    subcategories = flatten(find_subcategories(target, categories))
+    
+    if len(subcategories) == 0:
+        return 'The specified category is not in the category list.\n' \
+        'You can check the category list by command "view categories".\n' \
+        'Fail to find category.'
+
+    reply += f'Here\'s your expense and income records under category "{target}":\n'
+    reply += f'{"No.":{no_width}} {"Category":{cate_width}} {"Description":{desc_width}} {"Amount":{amt_width}}\n'
+    reply += '=== =============== ==================== ======\n'
+    
+    rows = db.execute("SELECT * from records WHERE person_id = ?", id)
+    subrecords = list(filter(lambda record: record["category"] in subcategories, rows))
+
+    for record in subrecords:
+        reply += f'{record["record_id"]:<{no_width}} {record["category"]:{cate_width}} {record["description"]:{desc_width}} {record["amount"]:{amt_width}}\n'
+        
+    reply += '=== =============== ==================== ======\n'
+
+    total = 0
+    # Sum up the amount of money of records
+    for record in subrecords:
+        total += int(record["amount"])
+    
+    reply += f'The total amount above is {total}.'
+
+    return reply
 
 
 def edit_ask_for_id(id, wanna_edit, num_of_rec):
@@ -273,10 +341,11 @@ def handle_message(event):
             update_status(user_id, 'EDIT_ASK_FOR_ID')
 
         elif text == 'view categories':
-            reply = view_categories()
+            reply = '\n'.join(view_categories())
 
         elif text == 'find':
-            pass
+            reply = "Which category do you want to find? "
+            update_status(user_id, 'FIND')
 
         elif text == 'help':
             reply = ' / '.join(commands)
@@ -302,6 +371,10 @@ def handle_message(event):
 
     elif user_status == 'EDIT':
         reply = edit(user_id, text, user_num_of_rec)
+        update_status(user_id, 'INIT')
+
+    elif user_status == 'FIND':
+        reply = find(user_id, text)
         update_status(user_id, 'INIT')
 
     line_bot_api.reply_message(
