@@ -17,8 +17,6 @@ handler = WebhookHandler(config.get('line-bot', 'channel_secret'))
 db = SQL("sqlite:///money.db")
 # return a list of dic
 
-records = []
-
 @app.route("/callback", methods=['POST'])
 def callback():
     # get X-Line-Signature header value
@@ -51,8 +49,8 @@ def view(id):
     
     rows = db.execute("SELECT * from records WHERE person_id = ?", id)
 
-    for no, record in enumerate(rows, 1):
-        reply += f'{no:<{no_width}} {record["description"]:{desc_width}} {record["amount"]:{amt_width}}\n'
+    for record in rows:
+        reply += f'{record["record_id"]:<{no_width}} {record["description"]:{desc_width}} {record["amount"]:{amt_width}}\n'
         
     reply += '=== ==================== ======\n'
 
@@ -66,7 +64,7 @@ def view(id):
     return reply
 
 
-def add(id, record):
+def add(id, record, num_of_rec):
     try:
         desc, amt = record.split()
     except ValueError:
@@ -80,16 +78,17 @@ def add(id, record):
         return 'Invalid value for money.\nFail to add a record.'
     else:
         # Keep records a list of lists of strings for future str operations
-        db.execute("INSERT INTO records (person_id, description, amount) VALUES(?, ?, ?)", id, desc, amt)
+        db.execute("INSERT INTO records (person_id, description, amount, record_id) VALUES(?, ?, ?, ?)", id, desc, amt, num_of_rec+1)
+        # Update user's num_of_rec + 1
+        update_num_of_rec(id, num_of_rec+1)
 
-        return f'Successfully add a record: {record}'
+        return f'Successfully add a record No.{num_of_rec+1}: {desc} {amt}'
 
 
-def delete(id, wanna_del):
-    return 'no func'
+def delete(id, wanna_del, num_of_rec):
     try:
         wanna_del = int(wanna_del)
-        assert 0 <= wanna_del <= len(records) # Ensure that the input is within the bounds
+        assert 0 <= wanna_del <= num_of_rec # Ensure that the input is within the bounds
         
     except ValueError:
         # If the input cannot be converted into an integer
@@ -103,11 +102,24 @@ def delete(id, wanna_del):
         if wanna_del == 0: # Do nothing if the input is 0
             return 'The deletion is skipped.'
         
-        wanna_del -= 1 # Need adjustment becuase No. is 1 based and the index is 0 based
+        #wanna_del -= 1 # Need adjustment becuase No. is 1 based and the index is 0 based
         # Pop the record
-        deleted_desc, deleted_amt = records.pop(wanna_del)
+        #deleted_desc, deleted_amt = records.pop(wanna_del)
+        db.execute("DELETE FROM records WHERE person_id = ? AND record_id = ?", id, wanna_del)
 
-        return f'Successfully delete a record: {deleted_desc} {deleted_amt}'
+        # Compactly update every record_id starting from deleted record_id
+        for new_record_id in range(wanna_del, num_of_rec):
+            old_record_id = new_record_id + 1
+            db.execute("UPDATE records SET record_id = ? WHERE record_id = ?", new_record_id, old_record_id)
+        
+        # Update user's num_of_rec - 1
+        update_num_of_rec(id, num_of_rec-1)
+
+        return f'Successfully delete a record No.{wanna_del}'
+
+
+def update_num_of_rec(id, new_num_of_rec):
+    db.execute("UPDATE people SET num_of_rec = ? WHERE id = ?", new_num_of_rec, id)
 
 
 def update_status(id, new_status):
@@ -124,10 +136,11 @@ def handle_message(event):
     user_id = event.source.user_id
     rows = db.execute("SELECT * FROM people WHERE id = ?", user_id)
     if len(rows) == 0:
-        db.execute("INSERT INTO people (id, status) VALUES (?, ?)", user_id, 'INIT')
+        db.execute("INSERT INTO people (id, status, num_of_rec) VALUES (?, ?, ?)", user_id, 'INIT', 0)
     
-    rows = db.execute("SELECT status FROM people WHERE id = ?", user_id)
+    rows = db.execute("SELECT * FROM people WHERE id = ?", user_id)
     user_status = rows[0]['status']
+    user_num_of_rec = rows[0]['num_of_rec']
 
     if user_status == 'INIT':
         if text == 'add':
@@ -146,11 +159,11 @@ def handle_message(event):
             update_status(user_id, 'INIT')
 
     elif user_status == 'ADD':
-        reply = add(user_id, text)
+        reply = add(user_id, text, user_num_of_rec)
         update_status(user_id, 'INIT')
 
     elif user_status == 'DELETE':
-        reply = delete(user_id, text)
+        reply = delete(user_id, text, user_num_of_rec)
         update_status(user_id, 'INIT')
 
     line_bot_api.reply_message(
