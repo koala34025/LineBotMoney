@@ -321,8 +321,6 @@ def update_request_id(id, new_request_id):
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    global state
-
     text = event.message.text
     reply = ''
 

@@ -1,3 +1,4 @@
 line-bot-sdk
 flask
 cs50
+psycopg2
