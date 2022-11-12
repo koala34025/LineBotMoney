@@ -1,6 +1,5 @@
 import os
 import sys
-#import configparser
 
 from cs50 import SQL
 from flask import Flask, abort, request
@@ -9,12 +8,6 @@ from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
-
-#config = configparser.ConfigParser()
-#config.read('config.ini')
-
-#line_bot_api = LineBotApi(config.get('line-bot', 'channel_access_token'))
-#handler = WebhookHandler(config.get('line-bot', 'channel_secret'))
 
 # get channel_secret and channel_access_token from your environment variable
 channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
@@ -29,7 +22,10 @@ if channel_access_token is None:
 line_bot_api = LineBotApi(channel_access_token)
 handler = WebhookHandler(channel_secret)
 
-db = SQL("sqlite:///money.db")
+#db = SQL("sqlite:///money.db")
+internal_database_url = os.getenv('INTERNAL_DATABASE_URL', None)
+
+db = SQL(internal_database_url)
 # return a list of dic
 
 
