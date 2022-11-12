@@ -24,7 +24,7 @@ handler = WebhookHandler(channel_secret)
 
 #db = SQL("sqlite:///money.db")
 internal_database_url = os.getenv('INTERNAL_DATABASE_URL', None)
-
+external_database_url = os.getenv('EXTERNAL_DATABASE_URL', None)
 db = SQL(internal_database_url)
 # return a list of dic
 
@@ -335,7 +335,7 @@ def handle_message(event):
 
     if user_status == 'INIT':
         if text == 'add':
-            reply = "Add an expense or income record with description and amount: "
+            reply = "Add an expense or income record with category, description, and amount: "
             update_status(user_id, 'ADD')
 
         elif text == 'view':
